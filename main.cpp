@@ -23,8 +23,8 @@ int **alloc_2d_int(int rows, int cols) {
 void master() {
     tStart = clock();
 
-    int width   =  1000;
-    int height  =  1000;
+    int width   =  5000;
+    int height  =  5000;
     int itr     =  40;//120;//505;
     double minx   =  0.13772053;
     double maxx   =  0.000492212651;
@@ -82,7 +82,7 @@ void master() {
             }
         }
     }
-    //img->WriteImage(filename);
+    img->WriteImage(filename);
     printf("(MASTER): Finished! File saved! Total execution time: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 
 }
