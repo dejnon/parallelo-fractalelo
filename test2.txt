@@ -1,0 +1,7 @@
+2500 			# width
+2500 			# height
+160 			# iterations
+0.13772053		  # minx
+0.000492212651  	# maxx
+0.000442666778  	# miny
+0.16108669		# maxy

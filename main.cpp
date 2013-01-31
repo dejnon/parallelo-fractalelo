@@ -14,74 +14,68 @@ int MPI_RANK, MPI_SIZE;
 int **alloc_2d_int(int rows, int cols) {
     int *data = (int *)malloc(rows*cols*sizeof(int));
     int **array= (int **)malloc(rows*sizeof(int*));
-    for (int i=0; i<rows; i++)
+    for (int i=0; i<rows; i++) {
         array[i] = &(data[cols*i]);
-
+    }
     return array;
 }
 
-void master() {
-    tStart = clock();
+void master(
+    int width   ,
+    int height  ,
+    int itr     ,
+    double minx ,
+    double maxx ,
+    double miny ,
+    double maxy ,
+    string filename
+) {
 
-    int width   =  5000;
-    int height  =  5000;
-    int itr     =  40;//120;//505;
-    double minx   =  0.13772053;
-    double maxx   =  0.000492212651;
-    double miny   =  0.000442666778;
-    double maxy   =  0.16108669;
+    tStart = clock();
 
     int splice_itr    = itr;
     int splice_width  = (width /(MPI_SIZE-1));
     int splice_height = height;
     
-    for(int partner = 1; partner < MPI_SIZE; partner++) {
-        double splice_size   = (maxx-minx)/(double)(MPI_SIZE-1);
-        double splice_minx   = (splice_size*(double)(partner-1))+minx;
-        double splice_maxx   = splice_minx+splice_size;
-        double splice_miny   = miny;
-        double splice_maxy   = maxy;
+for(int partner = 1; partner < MPI_SIZE; partner++) {
+    double splice_size   = (maxx-minx)/(double)(MPI_SIZE-1);
+    double splice_minx   = (splice_size*(double)(partner-1))+minx;
+    double splice_maxx   = splice_minx+splice_size;
+    double splice_miny   = miny;
+    double splice_maxy   = maxy;
 
-        printf("(MASTER): Sending initial data to processor %d\n", partner);
-        MPI_Send(&splice_itr    ,1, MPI_INT, partner, 0, MPI_COMM_WORLD);
-        MPI_Send(&splice_width  ,1, MPI_INT, partner, 0, MPI_COMM_WORLD);
-        MPI_Send(&splice_height ,1, MPI_INT, partner, 0, MPI_COMM_WORLD);
-        MPI_Send(&splice_minx   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
-        MPI_Send(&splice_maxx   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
-        MPI_Send(&splice_miny   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
-        MPI_Send(&splice_maxy   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
-    }
+    printf("(MASTER): Sending initial data to processor %d\n", partner);
+    MPI_Send(&splice_itr    ,1, MPI_INT, partner, 0, MPI_COMM_WORLD);
+    MPI_Send(&splice_width  ,1, MPI_INT, partner, 0, MPI_COMM_WORLD);
+    MPI_Send(&splice_height ,1, MPI_INT, partner, 0, MPI_COMM_WORLD);
+    MPI_Send(&splice_minx   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
+    MPI_Send(&splice_maxx   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
+    MPI_Send(&splice_miny   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
+    MPI_Send(&splice_maxy   ,1, MPI_DOUBLE, partner, 0, MPI_COMM_WORLD);
+}
 
     TGAImage *img = new TGAImage(width,height);
-    string filename = "./test.tga";
-    //         for(int x=0; x<width; x++) {
-    //     for(int y=0; y<height; y++) {
-    //         img->setPixel(image[x][y],x,y);
-    //     }
-    // }
-    // img->WriteImage(filename);
 
-    MPI_Status status;
     int** image = alloc_2d_int(splice_width, splice_height);
 
-    for(int partner = 1; partner < MPI_SIZE; partner++) {
-        MPI_Recv(&(image[0][0]), splice_width*splice_height, MPI_INT, partner, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        printf("(MASTER): Got result from: %d\n", partner);
-        int x_shift = (splice_width*(partner-1));
-        for(int x=0; x<splice_width; x++) {
-            for(int y=0; y<splice_height; y++) {    
-                img->setPixel(
-                    ColourConverter::hsvToRgb(
-                        image[x][y],
-                        image[x][y],
-                        image[x][y]
-                    ),
-                    (x_shift+x),
-                    y
-                );
-            }
+for(int partner = 1; partner < MPI_SIZE; partner++) {
+    MPI_Recv(&(image[0][0]), splice_width*splice_height, MPI_INT, partner, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    printf("(MASTER): Got result from: %d\n", partner);
+    int x_shift = (splice_width*(partner-1));
+    for(int x=0; x<splice_width; x++) {
+        for(int y=0; y<splice_height; y++) {    
+            img->setPixel(
+                ColourConverter::hsvToRgb(
+                    image[x][y],
+                    image[x][y],
+                    image[x][y]
+                ),
+                (x_shift+x),
+                y
+            );
         }
     }
+}
     img->WriteImage(filename);
     printf("(MASTER): Finished! File saved! Total execution time: %.2fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 
@@ -89,6 +83,8 @@ void master() {
 
 void slave() {
     tStart = clock();
+    printf("(E%d): Started.\n", MPI_RANK);
+
 
     int splice_itr   ;
     int splice_width ;
@@ -108,31 +104,21 @@ void slave() {
 
     printf("(E%d): Got all the parameters. Starts computing.\n", MPI_RANK);
 
-    // Fractal* f = new Fractal();
-    // short** image = f->getValues(
-    //     splice_width, 
-    //     splice_height, 
-    //     splice_itr, 
-    //     splice_minx, 
-    //     splice_maxx, 
-    //     splice_miny, 
-    //     splice_maxy
-    // );
     ComplexNumber* c = new ComplexNumber(-0.220, 0.735);
     double pixel_size_x = ((double)(splice_maxx - splice_minx) / (double)(splice_width));
     double pixel_size_y = ((double)(splice_maxy - splice_miny) / (double)(splice_height));
 
     int** image = alloc_2d_int(splice_width, splice_height);
-    for(int x=0; x<splice_width; x++) {
-        for(int y=0; y<splice_height; y++) {
-            double re = ((long double)x * pixel_size_x) + (double)splice_minx;
-            double im = ((long double)y * pixel_size_y) + (double)splice_miny;
-            int magnitude = abs(
-                (int)(Fractal::testPoint(ComplexNumber(re, im), *c, splice_itr)*100) % 255
-            );
-            image[x][y] = magnitude;
-        }
+for(int x=0; x<splice_width; x++) {
+    for(int y=0; y<splice_height; y++) {
+        double re = ((long double)x * pixel_size_x) + (double)splice_minx;
+        double im = ((long double)y * pixel_size_y) + (double)splice_miny;
+        int magnitude = abs(
+            (int)(Fractal::testPoint(ComplexNumber(re, im), *c, splice_itr)*100) % 255
+        );
+        image[x][y] = magnitude;
     }
+}
 
     printf("(E%d): Calculation finished! \n", MPI_RANK);
     tFinish = clock();
@@ -141,26 +127,10 @@ void slave() {
     
 
     printf("(E%d): Finished! Total execution time: %.2fs (data transfer: %.2fs)\n", MPI_RANK, (double)(clock() - tStart)/CLOCKS_PER_SEC, (double)(clock() - (tFinish-tStart))/CLOCKS_PER_SEC);
-
-    // TGAImage *img = new TGAImage(splice_width,splice_height);
-
-    // int a = MPI_RANK;
-    // stringstream ss;
-    // ss << a;
-    // string str = ss.str();
-    // string filename = "./test"+str+".tga";
-    // for(int x=0; x<splice_width; x++) {
-    //     for(int y=0; y<splice_height; y++) {
-    //         img->setPixel(ColourConverter::hsvToRgb(image[x][y],image[x][y],image[x][y]) ,x,y);
-    //     }
-    // }
-    // img->WriteImage(filename);
-
 }
 
 int main(int argc, char **argv)
 {
-
 	MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &MPI_RANK);
     MPI_Comm_size(MPI_COMM_WORLD, &MPI_SIZE);
@@ -170,8 +140,61 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
-    if (MPI_RANK == 0) {
-        master();
+    if (MPI_RANK == 0) {    
+        printf("##\n##\tPARALLELO FRACTALLELO\n##\n");
+        printf("Processors: %d\n", MPI_SIZE);
+        
+        printf("(MASTER): Started. Parameters\n");
+        for (int i = 0; i <= argc; i++) {
+            printf("%d - %s \n",i, argv[i]);
+        }
+        printf("\n");
+
+
+        if (argc < 3) {
+            fprintf(stderr,"Please supply 2 parameters. Input config file and output image name.\n");
+            fprintf(stderr,"e.g. ./fractalize ./test1.txt ./fractal.tga\n");
+            exit(-1);
+        }
+
+        FILE *newFile;
+        char lineBuffer[80];
+        //clrscr();
+
+        if ((newFile = fopen (argv[1], "rt"))) {
+            int    width  ;
+            int    height ;
+            int    itr    ;
+            double minx;
+            double maxx;
+            double miny;
+            double maxy;
+
+            fgets(lineBuffer, 80, newFile);
+            sscanf (lineBuffer, "%i",  &width );
+            fgets(lineBuffer, 80, newFile);
+            sscanf (lineBuffer, "%i",  &height);
+            fgets(lineBuffer, 80, newFile);
+            sscanf (lineBuffer, "%i",  &itr   );
+            fgets(lineBuffer, 80, newFile);
+            sscanf (lineBuffer, "%lf", &minx  );
+            fgets(lineBuffer, 80, newFile);
+            sscanf (lineBuffer, "%lf", &maxx  );
+            fgets(lineBuffer, 80, newFile);
+            sscanf (lineBuffer, "%lf", &miny  );
+            fgets(lineBuffer, 80, newFile);
+            sscanf (lineBuffer, "%lf", &maxy  );
+
+            fclose(newFile);
+
+            string filename(argv[2], 256);
+            printf("(MASTER): Configuration loaded\n");
+
+            master(width,height,itr,minx,maxx,miny,maxy,filename);            
+        } else {
+            printf("(MASTER): Error reading the file.\n");
+            exit(-1);
+        }
     } else {
         slave();
     }
